@@ -1,8 +1,10 @@
 #include <bits/stdc++.h>
 #include <cmath>
+#include <ECP.h>
 using namespace std;
 
-// --- Data structures and helper functions ---
+// ---------------------------------------------------------------------------
+// Data structures and helper functions
 
 // Structure to represent a point.
 struct Point {
@@ -21,22 +23,23 @@ double euclideanDistance(const Point &a, const Point &b) {
     return sqrt(sum);
 }
 
-// Brute-force computation of the closest pair distance (μ) in a set of points.
-double closestPairDistance(const vector<Point>& pts) {
+// Brute-force computation of the closest pair distance (O(n^2)).
+double bruteForceClosestPair(const vector<Point>& pts) {
     double best = numeric_limits<double>::max();
-    for (size_t i = 0; i < pts.size(); i++){
-        for (size_t j = i + 1; j < pts.size(); j++){
+    int n = pts.size();
+    if(n < 2) return 0.0;
+    for (int i = 0; i < n; i++){
+        for (int j = i + 1; j < n; j++){
             best = min(best, euclideanDistance(pts[i], pts[j]));
         }
     }
-    // If only one point is available, define the value as 0.
-    return (pts.size() < 2 ? 0.0 : best);
+    return best;
 }
 
 // Compute the minimum weight among points in a set.
 double minWeight(const vector<Point>& pts) {
     double m = numeric_limits<double>::max();
-    for (auto &p: pts) {
+    for (const auto &p: pts) {
         m = min(m, p.weight);
     }
     return m;
@@ -50,16 +53,13 @@ struct Packing {
    vector<Point> D;         // deleted points (from pruning)
 };
 
-// --- Main Algorithm ---
-
+// ---------------------------------------------------------------------------
+// Main Algorithm
 int main(){
-    ios::sync_with_stdio(false);
-    cin.tie(nullptr);
-    
     // Read input: number of points n, dimension d, desired subset size k,
-    // and λ (the weight multiplier in the utility function).
+    // and lambda (the weight multiplier in the utility function).
     int n, d, k;
-    double lambda; 
+    double lambda;
     double epsilon = 0.1; // constant ε (can be adjusted if needed)
     cin >> n >> d >> k >> lambda;
     
@@ -88,10 +88,13 @@ int main(){
     // --- Initialization using the first k points ---
     // Assume the stream has at least k points.
     vector<Point> initialPk(stream.begin(), stream.begin() + k);
-    double init_mu = closestPairDistance(initialPk);
+    double init_mu = bruteForceClosestPair(initialPk);
     
     // Prepare an array of packings, one for each radius level.
     vector<Packing> packings(J);
+    // Also prepare a parallel vector of dynamic ECPs for each packing level.
+    vector<DynamicECP> ecp_packings(J);
+    
     for (int i = 0; i < J; i++){
         // Initialize the radius as: r_i = (1+ε)^i * μ(Pk) / alpha.
         packings[i].r = pow(1 + epsilon, i) * init_mu / alpha;
@@ -100,23 +103,24 @@ int main(){
     
     // Our current best candidate solution (subset of k points)
     vector<Point> bestSolution = initialPk;
-    // Compute utility f(T)=μ(T)+λ·min{w(p): p in T}
-    double bestUtility = closestPairDistance(initialPk) + lambda * minWeight(initialPk);
+    // Compute utility f(T)=μ(T)+λ·minWeight(T)
+    double bestUtility = bruteForceClosestPair(initialPk) + lambda * minWeight(initialPk);
     
     // --- Process the remaining points in the stream ---
     for (int t = k; t < n; t++){
         Point p = stream[t];
         // Update each packing level with the new point.
         for (int i = 0; i < J; i++){
-            // Check if there exists some point in A∪N within distance r.
             bool found = false;
+            // Check in A.
             for (const auto &q : packings[i].A) {
                 if(euclideanDistance(p, q) <= packings[i].r) { 
                     found = true; 
                     break; 
                 }
             }
-            if(!found) {
+            // Check in N if not found.
+            if (!found) {
                 for (const auto &q : packings[i].N) {
                     if(euclideanDistance(p, q) <= packings[i].r) { 
                         found = true; 
@@ -124,59 +128,77 @@ int main(){
                     }
                 }
             }
-            // If p is already "covered" by A∪N, no update is needed.
-            if(found) continue;
+            if(found) continue;  // p is covered by A∪N
             
             // Otherwise, add p to the buffer N.
             packings[i].N.push_back(p);
             
-            // If the union A∪N now has exactly k points, update the radius.
+            // If A∪N now has exactly k points, update the radius.
             if(packings[i].A.size() + packings[i].N.size() == (size_t)k){
                 // Build the combined set from A and N.
                 vector<Point> combined = packings[i].A;
                 combined.insert(combined.end(), packings[i].N.begin(), packings[i].N.end());
-                double current_mu = closestPairDistance(combined);
                 
-                // Increase the current radius r until the invariant holds:
-                // find the smallest integer m such that α^m * r > μ(A∪N)
+                // Instead of calling bruteForceClosestPair, use the dynamic ECP:
+                // First, insert all points in A into the dynamic structure.
+                // (For simplicity we assume that when a packing level is updated for the first time,
+                //  its dynamic ECP is empty.)
+                if(ecp_packings[i].getPoints().empty()){
+                    for (const auto &q : packings[i].A) {
+                        ecp_packings[i].insert(q);
+                    }
+                }
+                // Also insert any new points from N.
+                for (const auto &q : packings[i].N) {
+                    ecp_packings[i].insert(q);
+                }
+                // Query the current closest pair distance.
+                double current_mu = ecp_packings[i].getClosestPair();
+                
+                // Increase r until the invariant holds: find smallest integer m such that α^m * r > current_mu.
                 int m = 0;
                 while(pow(alpha, m) * packings[i].r <= current_mu) 
                     m++;
                 packings[i].r = pow(alpha, m) * packings[i].r;
                 
-                // Absorb all recent insertions into A and clear the buffers.
+                // Absorb all points from N into A and clear buffers N and D.
                 packings[i].A.insert(packings[i].A.end(), packings[i].N.begin(), packings[i].N.end());
                 packings[i].N.clear();
                 packings[i].D.clear();
+                // (Our dynamic ECP already has these points.)
                 
-                // --- Pruning process ---
-                // Remove points from A until its closest pair distance is at least r.
+                // --- Pruning process using dynamic ECP ---
                 bool pruning = true;
                 while(pruning && packings[i].A.size() >= 2){
-                    double cp = closestPairDistance(packings[i].A);
-                    if(cp >= packings[i].r){
+                    double cp = ecp_packings[i].getClosestPair();
+                    if(cp >= packings[i].r) {
                         pruning = false;
                     } else {
                         // Find a pair (p, q) with distance < r and remove one of them.
+                        // Here, we scan the current set A brute-force.
                         bool removed = false;
                         for (size_t a = 0; a < packings[i].A.size() && !removed; a++){
                             for (size_t b = a + 1; b < packings[i].A.size() && !removed; b++){
                                 if(euclideanDistance(packings[i].A[a], packings[i].A[b]) < packings[i].r){
-                                    // Remove the second point and record it in D.
-                                    packings[i].D.push_back(packings[i].A[b]);
+                                    // Remove the second point.
+                                    Point toRemove = packings[i].A[b];
+                                    packings[i].D.push_back(toRemove);
+                                    // Erase from A.
                                     packings[i].A.erase(packings[i].A.begin() + b);
+                                    // Also remove from the dynamic ECP.
+                                    ecp_packings[i].remove(toRemove);
                                     removed = true;
                                 }
                             }
                         }
-                        if(!removed) break; // Safety break
+                        if(!removed) break; // Safety break in case no removal occurs.
                     }
                 }
-            } // end: if (|A∪N| == k)
-        } // end: for each packing level
+            } // end if(A∪N == k)
+        } // end for each packing level
         
         // --- Select the candidate solution from the current packings ---
-        // Pick the packing level with the largest radius.
+        // Choose the packing level with the largest radius.
         int bestIndex = 0;
         double max_r = -1.0;
         for (int i = 0; i < J; i++){
@@ -185,15 +207,15 @@ int main(){
                 bestIndex = i;
             }
         }
-        // Form the candidate T = A ∪ D.
+        // Form candidate = A ∪ D.
         vector<Point> candidate = packings[bestIndex].A;
         candidate.insert(candidate.end(), packings[bestIndex].D.begin(), packings[bestIndex].D.end());
-        // If candidate size does not equal k, fall back to the initial prefix.
+        // If candidate size is not equal to k, fall back to the initial prefix.
         if(candidate.size() != (size_t)k)
-            candidate = initialPk;
+            candidate = vector<Point>(stream.begin(), stream.begin()+k);
         
-        // Compute candidate utility: f(candidate)=μ(candidate)+λ·minWeight(candidate).
-        double candidate_mu = closestPairDistance(candidate);
+        // Compute candidate utility.
+        double candidate_mu = bruteForceClosestPair(candidate);
         double candidate_min_weight = minWeight(candidate);
         double candidate_utility = candidate_mu + lambda * candidate_min_weight;
         
@@ -204,7 +226,7 @@ int main(){
     }
     
     // --- Output the best solution subset ---
-    // (Here, we output the coordinates and weight of each point in the best subset.)
+    // Output the coordinates and weight of each point in the best subset.
     for (const auto &pt : bestSolution) {
         for (size_t j = 0; j < pt.coord.size(); j++){
             cout << pt.coord[j] << " ";

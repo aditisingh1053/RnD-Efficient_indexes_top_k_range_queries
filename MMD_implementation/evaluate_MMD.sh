@@ -1,7 +1,7 @@
 #!/bin/bash
 
-INPUT_DIR="Testcases/input"
-EXPECTED_DIR="Testcases/output"
+INPUT_DIR="Testcases_exp/input"
+EXPECTED_DIR="Testcases_exp/output"
 
 # Check if the C++ filename argument is provided
 if [ -z "$1" ]; then

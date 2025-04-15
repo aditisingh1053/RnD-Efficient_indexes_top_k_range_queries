@@ -67,8 +67,6 @@ struct Phi {
 
 // --- Implicit MMD Implementation ---
 int main() {
-    ios::sync_with_stdio(false);
-    cin.tie(0);
 
     int d, k, s; // dimension, subset size, number of boxes
     double lambda;
@@ -86,7 +84,7 @@ int main() {
             pts[j].coord.resize(d);
             for (int t = 0; t < d; t++) cin >> pts[j].coord[t];
             cin >> pts[j].weight;
-            pts[j].id = i * 100 + j;  // unique id
+            pts[j].id = i * INT16_MAX + j;  // unique id
         }
         phi.addBoxData(i, pts);
         boxes[i].id = i;
