@@ -7,7 +7,7 @@
 
 using namespace std;
 
-typedef pair<int, int> Point;
+typedef pair<double, double> Point;
 
 double euclidean_distance(const Point &p1, const Point &p2) {
     return sqrt(pow(p1.first - p2.first, 2) + pow(p1.second - p2.second, 2));
@@ -19,9 +19,9 @@ void printSet(const set<pair<int, Point>> &S) {
     }
 }
 
-vector<pair<int,Point>> greedy_cdt(vector<pair<int, Point>> &w, int k, double delta) {
-    vector<pair<int,Point>> S; // Set of selected points
-    set<pair<int,Point>> point_set(w.begin(), w.end()); // Convert to set for efficient removal
+vector<pair<double,Point>> greedy_cdt(vector<pair<double, Point>> &w, int k, double delta) {
+    vector<pair<double,Point>> S; // Set of selected points
+    set<pair<double,Point>> point_set(w.begin(), w.end()); // Convert to set for efficient removal
     // printSet(point_set);
     for (int i = 0; i < k; ++i) {
 
@@ -51,14 +51,14 @@ int main() {
 
     int N;
     int k;
-    int delta;
+    double delta;
     int d;
-    vector<pair<int,Point>> w; 
+    vector<pair<double,Point>> w; 
  
     cin>>N>>k>>delta>>d;
     for(int i=0;i<N;i++){
-        int weight;
-        int x,y;
+        double weight;
+        double x,y;
         cin>>weight>>x>>y;
         w.push_back({weight,{x,y}});
     }
