@@ -1,6 +1,6 @@
 #include <bits/stdc++.h>
 #include <cmath>
-#include <ECP.h>
+// #include "ECP.h"
 using namespace std;
 
 // ---------------------------------------------------------------------------
@@ -93,7 +93,7 @@ int main(){
     // Prepare an array of packings, one for each radius level.
     vector<Packing> packings(J);
     // Also prepare a parallel vector of dynamic ECPs for each packing level.
-    vector<DynamicECP> ecp_packings(J);
+    // vector<DynamicECP> ecp_packings(J);
     
     for (int i = 0; i < J; i++){
         // Initialize the radius as: r_i = (1+ε)^i * μ(Pk) / alpha.
@@ -143,17 +143,18 @@ int main(){
                 // First, insert all points in A into the dynamic structure.
                 // (For simplicity we assume that when a packing level is updated for the first time,
                 //  its dynamic ECP is empty.)
-                if(ecp_packings[i].getPoints().empty()){
-                    for (const auto &q : packings[i].A) {
-                        ecp_packings[i].insert(q);
-                    }
-                }
-                // Also insert any new points from N.
-                for (const auto &q : packings[i].N) {
-                    ecp_packings[i].insert(q);
-                }
+                // if(ecp_packings[i].getPoints().empty()){
+                //     for (const auto &q : packings[i].A) {
+                //         ecp_packings[i].insert(q);
+                //     }
+                // }
+                // // Also insert any new points from N.
+                // for (const auto &q : packings[i].N) {
+                //     ecp_packings[i].insert(q);
+                // }
                 // Query the current closest pair distance.
-                double current_mu = ecp_packings[i].getClosestPair();
+                // double current_mu = ecp_packings[i].getClosestPair();
+                double current_mu=bruteForceClosestPair(combined);
                 
                 // Increase r until the invariant holds: find smallest integer m such that α^m * r > current_mu.
                 int m = 0;
@@ -170,7 +171,7 @@ int main(){
                 // --- Pruning process using dynamic ECP ---
                 bool pruning = true;
                 while(pruning && packings[i].A.size() >= 2){
-                    double cp = ecp_packings[i].getClosestPair();
+                    double cp = bruteForceClosestPair(packings[i].A);
                     if(cp >= packings[i].r) {
                         pruning = false;
                     } else {
@@ -186,7 +187,7 @@ int main(){
                                     // Erase from A.
                                     packings[i].A.erase(packings[i].A.begin() + b);
                                     // Also remove from the dynamic ECP.
-                                    ecp_packings[i].remove(toRemove);
+                                    // ecp_packings[i].remove(toRemove);
                                     removed = true;
                                 }
                             }
@@ -212,7 +213,7 @@ int main(){
         candidate.insert(candidate.end(), packings[bestIndex].D.begin(), packings[bestIndex].D.end());
         // If candidate size is not equal to k, fall back to the initial prefix.
         if(candidate.size() != (size_t)k)
-            candidate = vector<Point>(stream.begin(), stream.begin()+k);
+            candidate = initialPk;
         
         // Compute candidate utility.
         double candidate_mu = bruteForceClosestPair(candidate);
